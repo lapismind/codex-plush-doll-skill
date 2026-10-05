@@ -1,0 +1,4 @@
+interface:
+  display_name: "Q 弹布偶制作"
+  short_description: "把角色图片做成透明底立体布偶，并导出脚底固定的无缝 Q 弹动画"
+  default_prompt: "使用 $plush-doll-animator 把这张角色图片做成透明底 3D 布偶，并生成连续循环的 Q 弹 GIF。"

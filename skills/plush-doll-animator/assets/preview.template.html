@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玩偶 · Q 弹预览</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #10171e; color: #e9f3f6; font: 16px/1.6 system-ui, "Microsoft YaHei", sans-serif; }
+  main { width: min(860px, 100%); padding: 24px; }
+  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0; }
+  .hint { color: #b0c4ca; font-size: 14px; margin: 0; }
+  .stage { position: relative; height: 480px; margin: 20px 0; border: 1px solid #2e424c; border-radius: 24px; background: radial-gradient(ellipse at 50% 85%, #244550, #17262f 60%, #111d26); overflow: hidden; display: grid; place-items: end center; }
+  .floor { position: absolute; bottom: 39px; width: 80%; height: 1px; background: linear-gradient(90deg, transparent, #547782, transparent); }
+  .shadow { position: absolute; width: 190px; height: 22px; bottom: 29px; border-radius: 50%; background: #040e15; filter: blur(8px); opacity: .45; }
+  .doll { position: absolute; --doll-size: {{DESKTOP_SIZE}}px; bottom: calc(39px - var(--doll-size) * {{FOOT_PADDING}}); width: var(--doll-size); height: var(--doll-size); padding: 0; border: 0; background: none; touch-action: none; user-select: none; cursor: default; transform-origin: 50% {{FOOT_PERCENT}}%; will-change: transform; }
+  .doll:focus-visible { outline: 2px solid #71dedc; outline-offset: 4px; border-radius: 20px; }
+  .doll img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
+  .controls { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: center; }
+  .field { flex: 1 1 180px; }
+  .field label { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  output { color: #87e4e1; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: #70d8d6; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 22px; }
+  button.action { padding: 10px 20px; border-radius: 10px; border: 1px solid #48646e; background: #223a45; color: #efffff; font: inherit; cursor: pointer; }
+  button.primary { background: #84e0dc; color: #102b33; border-color: #84e0dc; }
+  .check { display: flex; gap: 8px; align-items: center; }
+  .check input { accent-color: #70d8d6; width: 18px; height: 18px; }
+  .status { color: #b0c4ca; font-size: 14px; min-height: 24px; margin-top: 16px; }
+  @media(max-width: 480px) { main { padding: 18px; } .stage { height: 380px; } .doll { --doll-size: {{MOBILE_SIZE}}px; } .controls { gap: 16px; } }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>玩偶 · Q 弹预览</h1><p class="hint">脚底固定 · 压扁与拉长连续循环</p></header>
+  <div class="stage" aria-label="玩偶挤压回弹动画">
+    <div class="floor" aria-hidden="true"></div><div class="shadow" aria-hidden="true"></div>
+    <div class="doll" id="doll"><img src="{{PNG_SRC}}" alt="{{ALT}}" draggable="false"></div>
+  </div>
+  <div class="controls">
+    <div class="field"><label for="strength">形变强度 <output id="strengthValue">100%</output></label><input id="strength" type="range" min="0.4" max="1.2" step="0.05" value="1"></div>
+    <div class="field"><label for="tempo">单次周期 <output id="tempoValue">{{CYCLE_LABEL}} 秒</output></label><input id="tempo" type="range" min="{{TEMPO_MIN}}" max="{{TEMPO_MAX}}" step="0.01" value="{{CYCLE_SECONDS}}"></div>
+  </div>
+  <div class="actions">
+    <button class="action" id="pause">暂停</button>
+    <a class="hint" href="{{GIF_SRC}}" download>下载透明底 GIF</a>
+  </div>
+  <p class="status" id="status" aria-live="polite"></p>
+</main>
+<script>
+(() => {
+  const doll = document.getElementById('doll');
+  const strength = document.getElementById('strength');
+  const tempo = document.getElementById('tempo');
+  const pause = document.getElementById('pause');
+  const status = document.getElementById('status');
+  let phase = 0;
+  let lastTime = null;
+  let paused = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function render() {
+    // 周期函数首尾的数值和速度相同，不插入停顿，也不重复末帧。
+    const squash = (1 - Math.cos(phase)) / 2;
+    const gain = Number(strength.value);
+    // 正常形态为 1；参数来自已确认的 assets/motion.json。
+    const scaleY = 1 + gain * ({{MAX_SCALE_Y}} - 1 + ({{MIN_SCALE_Y}} - {{MAX_SCALE_Y}}) * squash);
+    const scaleX = 1 + gain * ({{MIN_SCALE_X}} - 1 + ({{MAX_SCALE_X}} - {{MIN_SCALE_X}}) * squash);
+    // 只缩放，不位移。变形支点固定在脚底。
+    doll.style.transform = `scale(${scaleX}, ${scaleY})`;
+  }
+  function updatePauseLabel() {
+    pause.textContent = paused ? '继续' : '暂停';
+    pause.setAttribute('aria-pressed', String(paused));
+    status.textContent = paused ? '已暂停' : '';
+  }
+  function frame(now) {
+    if (!paused && !document.hidden && lastTime !== null) {
+      const dt = (now - lastTime) / 1000;
+      phase = (phase + dt * Math.PI * 2 / Number(tempo.value)) % (Math.PI * 2);
+      render();
+    }
+    lastTime = now;
+    requestAnimationFrame(frame);
+  }
+  pause.addEventListener('click', () => {
+    paused = !paused;
+    lastTime = null;
+    updatePauseLabel();
+  });
+  strength.addEventListener('input', () => {
+    document.getElementById('strengthValue').textContent = `${Math.round(Number(strength.value) * 100)}%`;
+    render();
+  });
+  tempo.addEventListener('input', () => {
+    document.getElementById('tempoValue').textContent = `${Number(tempo.value).toFixed(2)} 秒`;
+  });
+  document.addEventListener('visibilitychange', () => { lastTime = null; });
+  doll.querySelector('img').addEventListener('error', () => {
+    paused = true;
+    updatePauseLabel();
+    status.textContent = '未能加载内嵌的玩偶图片，请重新生成预览。';
+  });
+  updatePauseLabel();
+  render();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

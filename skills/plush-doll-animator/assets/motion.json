@@ -1,0 +1,12 @@
+{
+  "cycle_seconds": 0.5,
+  "min_scale_y": 0.62,
+  "max_scale_y": 1.27,
+  "min_scale_x": 0.83,
+  "max_scale_x": 1.12,
+  "frame_duration_ms": 20,
+  "sprite_size": 440,
+  "canvas_size": [560, 560],
+  "target_foot_y": 526,
+  "alpha_threshold": 128
+}
